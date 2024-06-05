@@ -165,13 +165,11 @@ int img_demo(std::string path, std::string model_path)
     detector new_detcetor(model_path);
 
     //检测与绘制
-    new_detcetor.detect(image, 0.2, 0.4, armors);
+    // new_detcetor.detect(image, 0.2, 0.4, armors);
     // new_detcetor.find_ydd(image, armors);
-    draw_armor(image, armors);
+    // draw_armor(image, armors);
 
-    cv::imshow("Img", image);
-    cv::imwrite("/home/horsefly/yolov5-deployment/save/ydd.jpg", image);
-    cv::waitKey(0);
+    new_detcetor.split_img(image);
 
     return 0;
 }
@@ -222,14 +220,14 @@ int main()
     // std::string video_path = "../resource/2023-8-8-21_26_50.avi";
 
     // std::string video_path = "../resource/62.avi";
-    std::string video_path = "/media/horsefly/新加卷/data/video/2023-06-02-20_27_10.avi";
-    std::string model_path = "/home/horsefly/yolov5-deployment/models/7.5/last.xml";
-    video_player player;
-    video_demo(video_path, model_path, player);
+    // std::string video_path = "/media/horsefly/新加卷/data/video/2023-06-02-20_27_10.avi";
+    std::string model_path = "/home/horsefly/Yolov5-Deployment/models/7.5/last.xml";
+    // video_player player;
+    // video_demo(video_path, model_path, player);
 
 
 
-    // std::string img_path = "/home/horsefly/下载/final_ydd/nl_3_6899.jpg";
-    // img_demo(img_path, model_path);
+    std::string img_path = "/home/horsefly/下载/final_ydd_xyxyxyxy/nl_1_0.jpg";
+    img_demo(img_path, model_path);
     return 0;
 }

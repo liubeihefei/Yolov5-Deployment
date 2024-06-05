@@ -63,4 +63,7 @@ public:
 
     // 先提取roi，再进行传统二值化+提取提取目标
     void find_ydd(cv::Mat& image, std::vector<armor>& armors);
+
+    // 将图像进行4 * 3分割
+    std::vector<cv::Mat> split_img(cv::Mat image);
 };

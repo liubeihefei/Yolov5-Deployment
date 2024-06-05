@@ -445,3 +445,56 @@ void detector::find_ydd(cv::Mat& image, std::vector<armor>& armors)
     cv::imshow("ydd_roi", roi);
 }
 
+std::vector<cv::Mat> detector::split_img(cv::Mat image)
+{
+    // debug开关
+    bool debug = true;
+
+    // 单方向上区分个数
+    int nums = 8;
+
+    // 获取图像宽高
+    int width = image.cols;
+    int height = image.rows;
+    int ws = width / nums;
+    int hs = height / nums;
+
+    // 在原图上绘制宫格并保存
+    if(debug)
+    {
+        cv::Mat boxes = image.clone();
+        // 画线
+        for(int i = 1;i < nums;++i)
+        {
+            cv::line(boxes, cv::Point(0, i * hs), cv::Point(width, i * hs), cv::Scalar(0, 255, 0), 1);
+            cv::line(boxes, cv::Point(i * ws, 0), cv::Point(i * ws, height), cv::Scalar(0, 255, 0), 1);
+        }
+        cv::imwrite("/home/horsefly/Yolov5-Deployment/save/origin.jpg", boxes);        
+    }
+
+    // 对图像进行分割
+    std::vector<cv::Mat> imgs;
+    for(int i = 0;i < nums;++i)
+    {
+        for(int j = 0;j < nums;++j)
+        {
+            // 打印
+            if(debug)
+                std::cout << ws * i << " " <<  hs * j << " " << ws << " " << hs << std::endl;
+            // 定义矩形roi
+            cv::Rect tkw(ws * i, hs * j, ws, hs);
+            // 进行roi提取，放大
+            cv::Mat temp;
+            cv::resize(image(tkw), temp, cv::Size(width, height), 0, 0, cv::INTER_AREA);
+            // 放入imgs
+            imgs.push_back(temp);
+        }
+    }
+
+    // 保存图片
+    if(debug)
+        for(int i = 0;i < imgs.size();++i)
+            cv::imwrite("/home/horsefly/Yolov5-Deployment/save/" + std::to_string(i) + ".jpg", imgs[i]);
+
+    return imgs;
+}
