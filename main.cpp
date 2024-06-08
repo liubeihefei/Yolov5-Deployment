@@ -4,7 +4,7 @@
 
 //颜色列表
 const int color_list[80][3] ={
-                {216 , 82 , 24},
+                {255 , 255 , 255},
                 {236 ,176 , 31},
                 {125 , 46 ,141},
                 {118 ,171 , 47},
@@ -90,7 +90,8 @@ const int color_list[80][3] ={
 void draw_armor(cv::Mat& image, std::vector<armor>& armors)
 {
     static const char* class_names[] = {
-                                        "armor_sentry_red", 
+                                        "gl",
+                                        // "armor_sentry_red", 
                                         "armor_sentry_blue",
                                         "armor_sentry_none",
 
@@ -152,6 +153,20 @@ void draw_armor(cv::Mat& image, std::vector<armor>& armors)
         cv::putText(image, "0." + std::to_string(score_temp), cv::Point(armors[i].x1, armors[i].y1 - 10),
                     cv::FONT_HERSHEY_SIMPLEX, 0.4, color);
     }
+
+    // 获取图像宽高
+    int nums = 8;
+    int width = image.cols;
+    int height = image.rows;
+    int ws = width / nums;
+    int hs = height / nums;
+
+    // 在原图上绘制宫格并保存
+    for(int i = 1;i < nums;++i)
+    {
+        cv::line(image, cv::Point(0, i * hs), cv::Point(width, i * hs), cv::Scalar(0, 255, 0), 1);
+        cv::line(image, cv::Point(i * ws, 0), cv::Point(i * ws, height), cv::Scalar(0, 255, 0), 1);
+    }       
 }
 
 //用图像测试
@@ -165,11 +180,13 @@ int img_demo(std::string path, std::string model_path)
     detector new_detcetor(model_path);
 
     //检测与绘制
-    // new_detcetor.detect(image, 0.2, 0.4, armors);
+    new_detcetor.detect_little(image, 0.5, 0.4, armors);
     // new_detcetor.find_ydd(image, armors);
-    // draw_armor(image, armors);
+    draw_armor(image, armors);
 
-    new_detcetor.split_img(image);
+    cv::imwrite("/home/horsefly/Yolov5-Deployment/save/test.jpg", image);
+
+    // new_detcetor.split_img(image);
 
     return 0;
 }
@@ -193,13 +210,13 @@ int video_demo(std::string path, std::string model_path, video_player video_play
         auto start = std::chrono::steady_clock::now();
 
         std::vector<armor> armors;
-        new_detcetor.detect(image, 0.1, 0.4, armors);
+        // new_detcetor.detect(image, 0.1, 0.4, armors);
 
         // if(int(armors.size() > 0))
         //     new_detcetor.correct_grid(armors, image);
 
         // new_detcetor.find_ydd(image, armors);
-        draw_armor(image, armors);
+        // draw_armor(image, armors);
 
         //结束计时
         auto end = std::chrono::steady_clock::now();
@@ -217,17 +234,14 @@ int video_demo(std::string path, std::string model_path, video_player video_play
 
 int main()
 {
-    // std::string video_path = "../resource/2023-8-8-21_26_50.avi";
+    
+    std::string model_path = "/home/horsefly/Yolov5-Deployment/models/gl1.0/last.xml";
 
-    // std::string video_path = "../resource/62.avi";
-    // std::string video_path = "/media/horsefly/新加卷/data/video/2023-06-02-20_27_10.avi";
-    std::string model_path = "/home/horsefly/Yolov5-Deployment/models/7.5/last.xml";
+    // std::string video_path = "/media/horsefly/Ubuntu 22.0/zhefang/hero/2024-5-16-11_21_42/0.avi";
     // video_player player;
     // video_demo(video_path, model_path, player);
 
-
-
-    std::string img_path = "/home/horsefly/下载/final_ydd_xyxyxyxy/nl_1_0.jpg";
+    std::string img_path = "/home/horsefly/Yolov5-Deployment/save/gl_test/gl_test_8.jpg";
     img_demo(img_path, model_path);
     return 0;
 }

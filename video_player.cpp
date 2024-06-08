@@ -36,7 +36,7 @@ void video_player::respondKeyIfVideoStopped(int key, cv::Mat &img) {
         std::cout << "save image" << std::endl;
         std::stringstream sstream;
         sstream.str("");
-        sstream << "../save/" << "background_outpost" <<cnt_img << ".jpg";
+        sstream << "../save/gl_test/" << "gl_test_" <<cnt_img << ".jpg";
         std::cout << "sstream" << sstream.str() << std::endl;
         cv::imwrite(sstream.str(), img);
         cnt_img++;

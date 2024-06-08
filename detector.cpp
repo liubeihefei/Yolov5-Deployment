@@ -1,5 +1,6 @@
 #include "detector.hpp"
 #include <time.h>
+#include <cmath>  
 
 
 detector::detector(std::string path)
@@ -88,27 +89,27 @@ void detector::nms(float* result, float conf_thr, float iou_thr, std::vector<arm
         //     if(temp_s < result[k])
         //         temp_s = result[k];
         // if(temp_s >= conf_thr)
-        if(result[8 + i * 43] >= conf_thr)
+        if(result[8 + i * 10] >= conf_thr)
         {
             armor temp;
             //将四个角点放入
-            temp.x1 = int((result[0 + i * 43] - padding_x) / scale);   temp.x2 = int((result[2 + i * 43] - padding_x) / scale);
-            temp.x3 = int((result[4 + i * 43] - padding_x) / scale);   temp.x4 = int((result[6 + i * 43] - padding_x) / scale);
-            temp.y1 = int((result[1 + i * 43] - padding_y) / scale);   temp.y2 = int((result[3 + i * 43] - padding_y) / scale);
-            temp.y3 = int((result[5 + i * 43] - padding_y) / scale);   temp.y4 = int((result[7 + i * 43] - padding_y) / scale);
+            temp.x1 = int((result[0 + i * 10] - padding_x) / scale);   temp.x2 = int((result[2 + i * 10] - padding_x) / scale);
+            temp.x3 = int((result[4 + i * 10] - padding_x) / scale);   temp.x4 = int((result[6 + i * 10] - padding_x) / scale);
+            temp.y1 = int((result[1 + i * 10] - padding_y) / scale);   temp.y2 = int((result[3 + i * 10] - padding_y) / scale);
+            temp.y3 = int((result[5 + i * 10] - padding_y) / scale);   temp.y4 = int((result[7 + i * 10] - padding_y) / scale);
 
             //找到最大的条件类别概率并乘上conf作为类别概率
-            float cls = result[i * 43 + 9];
+            float cls = result[i * 10 + 9];
             int cnt = 0;
-            for(int j = i * 43 + 10;j < i * 43 + 43;++j)
+            for(int j = i * 10 + 10;j < i * 10 + 10;++j)
             {
                 if(cls < result[j])
                     {
                         cls = result[j];
-                        cnt = (j - 9) % 43;
+                        cnt = (j - 9) % 10;
                     }
             }
-            cls *= result[8 + i * 43];
+            // cls *= result[8 + i * 10];
             // cls = temp_s;
             temp.score = cls;
             temp.label = cnt;
@@ -170,6 +171,68 @@ void detector::detect(const cv::Mat& image, float conf_thr, float iou_thr, std::
    
     //得到最后的装甲板
     nms(result, conf_thr, iou_thr, armors);
+}
+
+void detector::detect_little(const cv::Mat& image, float conf_thr, float iou_thr, std::vector<armor>& armors)
+{
+    //不要在原图上操作
+    cv::Mat image0 = image;
+    //对图像进行分割并串行推理
+    std::vector<cv::Mat> imgs = split_img(image0);
+    //一些必要信息
+    int nums = std::sqrt(imgs.size());
+    int height = image.rows;
+    int wight = image.cols;
+    int ws = wight / nums;
+    int hs = height / nums;
+
+
+    auto start = std::chrono::steady_clock::now();
+
+    for(int i = 0;i < imgs.size();++i)
+    {
+        std::cout << i << std::endl;
+        //计算缩放大小，padding个数，先缩放再padding
+        scale = std::min(float(640) / imgs[i].cols, float(640) / imgs[i].rows);
+        padding_y = int((640 - imgs[i].rows * scale) / 2);
+        padding_x = int((640 - imgs[i].cols * scale) / 2);
+        cv::resize(imgs[i], imgs[i], cv::Size(imgs[i].cols * scale, imgs[i].rows * scale), cv::INTER_LINEAR);
+        cv::copyMakeBorder(imgs[i], imgs[i], padding_y, padding_y, padding_x, padding_x, cv::BORDER_CONSTANT, (144, 144, 144));
+        //获得输入张量
+        ov::Tensor input_tensor = infer_request.get_input_tensor(0);
+        preprocess(imgs[i], input_tensor);
+        infer_request.infer();
+        //推理得float*结果
+        ov::Tensor output_tensor = infer_request.get_output_tensor(0);
+        auto result = output_tensor.data<float>();
+
+        int before = armors.size();
+        //得到最后的装甲板
+        nms(result, conf_thr, iou_thr, armors);
+        int after = armors.size();
+
+        //对装甲板中的点进行处理
+        for(int j = before;j < after;++j)
+        {
+            //先将点缩小到原本roi区域中
+            armors[j].x1 /= nums;   armors[j].y1 /= nums;
+            armors[j].x2 /= nums;   armors[j].y2 /= nums;
+            armors[j].x3 /= nums;   armors[j].y3 /= nums;
+            armors[j].x4 /= nums;   armors[j].y4 /= nums;
+            //根据i，反推在原图中的哪个宫格
+            int ori_xth = i / nums;
+            int ori_yth = i % nums;
+            armors[j].x1 += ori_xth * ws;   armors[j].y1 += ori_yth * hs;
+            armors[j].x2 += ori_xth * ws;   armors[j].y2 += ori_yth * hs;
+            armors[j].x3 += ori_xth * ws;   armors[j].y3 += ori_yth * hs;
+            armors[j].x4 += ori_xth * ws;   armors[j].y4 += ori_yth * hs;
+        }
+    }
+
+    auto end = std::chrono::steady_clock::now();
+    double dur = std::chrono::duration<double, std::milli>(end - start).count();
+
+    std::cout << "time: " << dur << std::endl;
 }
 
 void detector::correct_grid(std::vector<armor>& armors, const cv::Mat &src)
@@ -448,7 +511,7 @@ void detector::find_ydd(cv::Mat& image, std::vector<armor>& armors)
 std::vector<cv::Mat> detector::split_img(cv::Mat image)
 {
     // debug开关
-    bool debug = true;
+    bool debug = false;
 
     // 单方向上区分个数
     int nums = 8;
