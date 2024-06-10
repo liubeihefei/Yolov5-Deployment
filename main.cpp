@@ -87,7 +87,7 @@ const int color_list[80][3] ={
         };
 
 //画armor
-void draw_armor(cv::Mat& image, std::vector<armor>& armors)
+void draw_armor(cv::Mat& image, std::vector<armor>& armors, int nums)
 {
     static const char* class_names[] = {
                                         "gl",
@@ -155,7 +155,6 @@ void draw_armor(cv::Mat& image, std::vector<armor>& armors)
     }
 
     // 获取图像宽高
-    int nums = 8;
     int width = image.cols;
     int height = image.rows;
     int ws = width / nums;
@@ -170,7 +169,7 @@ void draw_armor(cv::Mat& image, std::vector<armor>& armors)
 }
 
 //用图像测试
-int img_demo(std::string path, std::string model_path)
+int img_demo(std::string path, std::string model_path, std::string font, int num)
 {
     //导入图片
     cv::Mat image;
@@ -180,11 +179,11 @@ int img_demo(std::string path, std::string model_path)
     detector new_detcetor(model_path);
 
     //检测与绘制
-    new_detcetor.detect_little(image, 0.5, 0.4, armors);
+    new_detcetor.detect_little(image, 0.5, 0.4, armors, num);
     // new_detcetor.find_ydd(image, armors);
-    draw_armor(image, armors);
+    draw_armor(image, armors, num);
 
-    cv::imwrite("/home/horsefly/Yolov5-Deployment/save/test.jpg", image);
+    cv::imwrite("/home/horsefly/Yolov5-Deployment/save/out/" + font + "_" + std::to_string(num) + ".jpg", image);
 
     // new_detcetor.split_img(image);
 
@@ -235,13 +234,22 @@ int video_demo(std::string path, std::string model_path, video_player video_play
 int main()
 {
     
-    std::string model_path = "/home/horsefly/Yolov5-Deployment/models/gl1.0/last.xml";
+    std::string model_path = "/home/horsefly/Yolov5-Deployment/models/gl2.0/last.xml";
 
     // std::string video_path = "/media/horsefly/Ubuntu 22.0/zhefang/hero/2024-5-16-11_21_42/0.avi";
     // video_player player;
     // video_demo(video_path, model_path, player);
 
-    std::string img_path = "/home/horsefly/Yolov5-Deployment/save/gl_test/gl_test_8.jpg";
-    img_demo(img_path, model_path);
+
+    // 进行11张图片1-10倍分割测试
+    for(int i = 0;i < 11;++i)
+    {
+        std::string font = std::to_string(i);
+        std::string img_path = "/home/horsefly/Yolov5-Deployment/save/gl_test/gl_test_" + font + ".jpg";
+        int nums[] = {1, 2, 4, 8, 10};
+        for(int j = 0;j < 5;++j)
+            img_demo(img_path, model_path, font, nums[j]);
+    }
+    
     return 0;
 }

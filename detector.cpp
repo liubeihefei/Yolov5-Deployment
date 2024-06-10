@@ -173,14 +173,13 @@ void detector::detect(const cv::Mat& image, float conf_thr, float iou_thr, std::
     nms(result, conf_thr, iou_thr, armors);
 }
 
-void detector::detect_little(const cv::Mat& image, float conf_thr, float iou_thr, std::vector<armor>& armors)
+void detector::detect_little(const cv::Mat& image, float conf_thr, float iou_thr, std::vector<armor>& armors, int nums)
 {
     //不要在原图上操作
     cv::Mat image0 = image;
     //对图像进行分割并串行推理
-    std::vector<cv::Mat> imgs = split_img(image0);
+    std::vector<cv::Mat> imgs = split_img(image0, nums);
     //一些必要信息
-    int nums = std::sqrt(imgs.size());
     int height = image.rows;
     int wight = image.cols;
     int ws = wight / nums;
@@ -508,13 +507,10 @@ void detector::find_ydd(cv::Mat& image, std::vector<armor>& armors)
     cv::imshow("ydd_roi", roi);
 }
 
-std::vector<cv::Mat> detector::split_img(cv::Mat image)
+std::vector<cv::Mat> detector::split_img(cv::Mat image, int nums)
 {
     // debug开关
     bool debug = false;
-
-    // 单方向上区分个数
-    int nums = 8;
 
     // 获取图像宽高
     int width = image.cols;

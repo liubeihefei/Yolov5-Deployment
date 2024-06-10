@@ -55,7 +55,7 @@ public:
     // 从输入到结果封装的完整过程
     void detect(const cv::Mat& image, float conf_thr, float iou_thr, std::vector<armor>& armors);
 
-    void detect_little(const cv::Mat& image, float conf_thr, float iou_thr, std::vector<armor>& armors);
+    void detect_little(const cv::Mat& image, float conf_thr, float iou_thr, std::vector<armor>& armors, int nums);
 
     
     //-------------以下为测试功能------------
@@ -67,5 +67,5 @@ public:
     void find_ydd(cv::Mat& image, std::vector<armor>& armors);
 
     // 将图像进行4 * 3分割
-    std::vector<cv::Mat> split_img(cv::Mat image);
+    std::vector<cv::Mat> split_img(cv::Mat image, int nums);
 };
