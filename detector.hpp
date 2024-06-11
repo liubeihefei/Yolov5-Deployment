@@ -57,6 +57,8 @@ public:
 
     void detect_little(const cv::Mat& image, float conf_thr, float iou_thr, std::vector<armor>& armors, int nums);
 
+    void detect_little_test(const cv::Mat& image, float conf_thr, float iou_thr, std::vector<armor>& armors);
+
     
     //-------------以下为测试功能------------
 

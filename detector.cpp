@@ -137,6 +137,8 @@ void detector::preventExceed(int &x, int &y, int &width, int &height, const cv::
 {
     if (x < 0) x = 0;
     if (y < 0) y = 0;
+    // if (x > src.cols) x = src.cols;
+    // if (y > src.rows) y = src.rows;
     if (x + width > src.cols) width = src.cols - x;
     if (y + height > src.rows) height = src.rows - y;
 }
@@ -231,6 +233,169 @@ void detector::detect_little(const cv::Mat& image, float conf_thr, float iou_thr
     auto end = std::chrono::steady_clock::now();
     double dur = std::chrono::duration<double, std::milli>(end - start).count();
 
+    std::cout << "time: " << dur << std::endl;
+}
+
+void detector::detect_little_test(const cv::Mat& image, float conf_thr, float iou_thr, std::vector<armor>& armors)
+{
+    //不要在原图上操作
+    cv::Mat image0 = image;
+
+    auto start = std::chrono::steady_clock::now();
+
+    //对图像进行不同倍分割并串行推理
+    int nums[] = {1, 2, 4, 8, 10};
+    for(int num = 0;num < 5;++num)
+    {
+        //对图片进行分割
+        std::vector<cv::Mat> imgs = split_img(image0, nums[num]);
+        //一些必要信息
+        int height = image0.rows;
+        int width = image0.cols;
+        int ws = width / nums[num];
+        int hs = height / nums[num];
+
+        //按当前分割倍数进行分割、推理
+        for(int i = 0;i < imgs.size();++i)
+        {
+            std::cout << i << std::endl;
+            //计算缩放大小，padding个数，先缩放再padding
+            scale = std::min(float(640) / imgs[i].cols, float(640) / imgs[i].rows);
+            padding_y = int((640 - imgs[i].rows * scale) / 2);
+            padding_x = int((640 - imgs[i].cols * scale) / 2);
+            cv::resize(imgs[i], imgs[i], cv::Size(imgs[i].cols * scale, imgs[i].rows * scale), cv::INTER_LINEAR);
+            cv::copyMakeBorder(imgs[i], imgs[i], padding_y, padding_y, padding_x, padding_x, cv::BORDER_CONSTANT, (144, 144, 144));
+            //获得输入张量
+            ov::Tensor input_tensor = infer_request.get_input_tensor(0);
+            preprocess(imgs[i], input_tensor);
+            infer_request.infer();
+            //推理得float*结果
+            ov::Tensor output_tensor = infer_request.get_output_tensor(0);
+            auto result = output_tensor.data<float>();
+
+            int before = armors.size();
+            //得到最后的装甲板
+            nms(result, conf_thr, iou_thr, armors);
+            int after = armors.size();
+
+            //对装甲板中的点进行处理
+            for(int j = before;j < after;++j)
+            {
+                //先将点缩小到原本roi区域中
+                armors[j].x1 /= nums[num];   armors[j].y1 /= nums[num];
+                armors[j].x2 /= nums[num];   armors[j].y2 /= nums[num];
+                armors[j].x3 /= nums[num];   armors[j].y3 /= nums[num];
+                armors[j].x4 /= nums[num];   armors[j].y4 /= nums[num];
+                //根据i，反推在原图中的哪个宫格
+                int ori_xth = i / nums[num];
+                int ori_yth = i % nums[num];
+                armors[j].x1 += ori_xth * ws;   armors[j].y1 += ori_yth * hs;
+                armors[j].x2 += ori_xth * ws;   armors[j].y2 += ori_yth * hs;
+                armors[j].x3 += ori_xth * ws;   armors[j].y3 += ori_yth * hs;
+                armors[j].x4 += ori_xth * ws;   armors[j].y4 += ori_yth * hs;
+            }
+        }
+
+        //对当前分割所得装甲板进行传统筛选
+        std::vector<cv::Point> res;
+        armor result;
+        result.label = -1;
+        for (auto iter = armors.begin(); iter != armors.end();)
+        {
+            //取出当前目标的四点（方正）
+            int gl_min_x = std::min(iter->x4, std::min(iter->x3, std::min(iter->x1, iter->x2)));
+            int gl_max_x = std::max(iter->x4, std::max(iter->x3, std::max(iter->x1, iter->x2)));
+            int gl_min_y = std::min(iter->y4, std::min(iter->y3, std::min(iter->y1, iter->y2)));
+            int gl_max_y = std::max(iter->y4, std::max(iter->y3, std::max(iter->y1, iter->y2)));
+            int gl_width = gl_max_x - gl_min_x;
+            int gl_height = gl_max_y - gl_min_y;
+
+            preventExceed(gl_min_x, gl_min_y, gl_width, gl_height, image0);
+
+            //1、若面积过小或大于图像面积1/4则筛掉
+            if(gl_width * gl_height < 25 || gl_width * gl_height > width * height * 0.25)
+            {
+                iter = armors.erase(iter);
+                continue;
+            }
+
+            //2、若宽长比过高则筛掉
+            float ratio = float(gl_width) / gl_height;
+            if(ratio > 1.2)
+            {
+                iter = armors.erase(iter);
+                continue;
+            }
+
+            //将矩形区域抠出
+            cv::Mat temp_img = image0(cv::Rect(gl_min_x, gl_min_y, gl_width, gl_height));
+            //对roi区域转灰度
+            cv::cvtColor(temp_img, temp_img, cv::COLOR_BGR2GRAY);
+            //对roi区域进行自适应二值化
+            cv::threshold(temp_img, temp_img, 0, 255, cv::THRESH_OTSU);
+            //找轮廓
+            std::vector<std::vector<cv::Point>> contours;
+            std::vector<cv::Vec4i>hierarchy;
+            cv::findContours(temp_img, contours, hierarchy, cv::RETR_EXTERNAL, cv::CHAIN_APPROX_SIMPLE, cv::Point(gl_min_x, gl_min_y));
+
+            //遍历轮廓，将面积最大的轮廓找出
+            float area = cv::contourArea(contours[0]);
+            std::vector<cv::Point> temp = contours[0];
+            for(int con = 0;con < contours.size();++con)
+            {
+                float new_area = cv::contourArea(contours[con]);
+                if(area < new_area)
+                {
+                    area = new_area;
+                    temp = contours[con];
+                }
+            }
+
+            // //3、如果该轮廓的拐点数小于16，则丢掉
+            // if(temp.size() < 16)
+            // {
+            //     iter = armors.erase(iter);
+            //     continue;
+            // }
+
+            //若res为空（即尚未赋值），将temp赋值给res
+            if(res.size() == 0)
+            {
+                res = temp;
+                std::cout << "get the res" << std::endl;
+            }
+            //4、否则证明有多个符合条件的轮廓，此时保留离画面中心最近的轮廓
+            else
+            {
+                cv::Rect res_rect = cv::boundingRect(res);
+                cv::Rect temp_rect = cv::boundingRect(temp);
+                float res_dis = std::pow(std::pow(res_rect.x - width / 2, 2) + std::pow(res_rect.y - height / 2, 2), 2);
+                float temp_dis = std::pow(std::pow(temp_rect.x - width / 2, 2) + std::pow(temp_rect.y - height / 2, 2), 2);
+                if(temp_dis < res_dis)
+                    res = temp;
+            }
+
+            //无论res是否更新，都将当前的armor丢掉，保证最后armors内不存在任何armor
+            cv::Rect res_rect = cv::boundingRect(res);
+            result.label = iter->label;
+            result.score = iter->score;
+            result.x1 = res_rect.x;  result.y1 = res_rect.y;
+            result.x2 = res_rect.x;  result.y2 = res_rect.y + res_rect.height;
+            result.x3 = res_rect.x + res_rect.width;  result.y3 = res_rect.y + res_rect.height;
+            result.x4 = res_rect.x + res_rect.width;  result.y4 = res_rect.y;
+            iter = armors.erase(iter);
+        }
+
+        //若result赋过值，说明无需再往下进行划分推理，此时给armors赋一个唯一的armor
+        if(result.label != -1)
+        {
+            armors.push_back(result);
+            break;
+        }
+    }
+
+    auto end = std::chrono::steady_clock::now();
+    double dur = std::chrono::duration<double, std::milli>(end - start).count();
     std::cout << "time: " << dur << std::endl;
 }
 

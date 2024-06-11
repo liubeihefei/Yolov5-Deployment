@@ -86,7 +86,7 @@ const int color_list[80][3] ={
                 {127 ,127 ,  0},
         };
 
-//画armor
+//画armor，nums为666时不进行绘制
 void draw_armor(cv::Mat& image, std::vector<armor>& armors, int nums)
 {
     static const char* class_names[] = {
@@ -154,6 +154,8 @@ void draw_armor(cv::Mat& image, std::vector<armor>& armors, int nums)
                     cv::FONT_HERSHEY_SIMPLEX, 0.4, color);
     }
 
+    if(nums == 666)
+        return;
     // 获取图像宽高
     int width = image.cols;
     int height = image.rows;
@@ -179,7 +181,7 @@ int img_demo(std::string path, std::string model_path, std::string font, int num
     detector new_detcetor(model_path);
 
     //检测与绘制
-    new_detcetor.detect_little(image, 0.5, 0.4, armors, num);
+    new_detcetor.detect_little_test(image, 0.5, 0.4, armors);
     // new_detcetor.find_ydd(image, armors);
     draw_armor(image, armors, num);
 
@@ -234,7 +236,7 @@ int video_demo(std::string path, std::string model_path, video_player video_play
 int main()
 {
     
-    std::string model_path = "/home/horsefly/Yolov5-Deployment/models/gl2.0/last.xml";
+    std::string model_path = "/home/horsefly/Yolov5-Deployment/models/gl3.0/last.xml";
 
     // std::string video_path = "/media/horsefly/Ubuntu 22.0/zhefang/hero/2024-5-16-11_21_42/0.avi";
     // video_player player;
@@ -242,14 +244,26 @@ int main()
 
 
     // 进行11张图片1-10倍分割测试
+    // for(int i = 0;i < 11;++i)
+    // {
+    //     std::string font = std::to_string(i);
+    //     std::string img_path = "/home/horsefly/Yolov5-Deployment/save/gl_test/gl_test_" + font + ".jpg";
+    //     int nums[] = {1, 2, 4, 8, 10};
+    //     for(int j = 0;j < 5;++j)
+    //         img_demo(img_path, model_path, font, nums[j]);
+    // }
+
+
+    // 进行11张图片实战测试
     for(int i = 0;i < 11;++i)
     {
         std::string font = std::to_string(i);
         std::string img_path = "/home/horsefly/Yolov5-Deployment/save/gl_test/gl_test_" + font + ".jpg";
-        int nums[] = {1, 2, 4, 8, 10};
-        for(int j = 0;j < 5;++j)
-            img_demo(img_path, model_path, font, nums[j]);
+        img_demo(img_path, model_path, font, 666);
     }
+
+    // std::string img_path = "/home/horsefly/Yolov5-Deployment/save/gl_test/gl_test_10.jpg";
+    // img_demo(img_path, model_path, "666", 666);
     
     return 0;
 }
